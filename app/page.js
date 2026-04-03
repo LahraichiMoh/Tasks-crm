@@ -879,7 +879,7 @@ export default function App() {
             t('projects')
         } <
         /button> {
-        (user ? .role === 'SUPER_ADMIN' || user ? .role === 'ADMIN') && ( <
+        (user && (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN')) && ( <
             button onClick = {
                 () => setActiveTab('users')
             }
@@ -903,14 +903,14 @@ className = {
     MessageSquare className = "h-5 w-5" / > {
         t('messages')
     } {
-        messages.inbox ? .filter(m => !m.read).length > 0 && ( <
+        ((messages.inbox || []).filter(m => !m.read).length > 0) && ( <
             Badge className = "ml-auto bg-red-500" > {
                 messages.inbox.filter(m => !m.read).length
             } < /Badge>
         )
     } <
     /button> {
-    (user ? .role === 'SUPER_ADMIN' || user ? .role === 'ADMIN') && ( <
+    (user && (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN')) && ( <
         button onClick = {
             () => setActiveTab('activity')
         }
@@ -932,16 +932,16 @@ div className = "absolute bottom-0 left-0 right-0 p-4 border-t border-white/10" 
     div className = "flex items-center gap-3 mb-4" >
     <
     div className = "w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-full flex items-center justify-center" > {
-        user ? .name ? .charAt(0)
+        (user && user.name ? user.name.charAt(0) : '')
     } <
     /div> <
 div className = "flex-1 min-w-0" >
     <
     p className = "text-sm font-medium truncate" > {
-        user ? .name
+        (user && user.name)
     } < /p> <
 p className = "text-xs text-white/60" > {
-    getRoleBadge(user ? .role)
+    getRoleBadge(user && user.role)
 } < /p> < /
 div > <
     /div> <
@@ -1001,7 +1001,7 @@ aside >
                 t('dashboard')
             } < /h1> <
             p className = "text-slate-500 mt-1" > Welcome back, {
-                user ? .name
+                (user && user.name)
             } < /p> < /
             div > <
             /div>
@@ -1023,7 +1023,7 @@ aside >
                 t('totalLeads')
             } < /p> <
             p className = "text-3xl font-bold mt-1" > {
-                stats ? .totalLeads || 0
+                (stats && stats.totalLeads) || 0
             } < /p> < /
             div > <
             Users className = "h-10 w-10 text-blue-200" / >
@@ -1045,7 +1045,7 @@ aside >
                 t('interestedLeads')
             } < /p> <
             p className = "text-3xl font-bold mt-1" > {
-                stats ? .interested || 0
+                (stats && stats.interested) || 0
             } < /p> < /
             div > <
             ThumbsUp className = "h-10 w-10 text-green-200" / >
@@ -1067,7 +1067,7 @@ aside >
                 t('notInterestedLeads')
             } < /p> <
             p className = "text-3xl font-bold mt-1" > {
-                stats ? .notInterested || 0
+                (stats && stats.notInterested) || 0
             } < /p> < /
             div > <
             ThumbsDown className = "h-10 w-10 text-red-200" / >
@@ -1089,7 +1089,7 @@ aside >
                 t('conversionRate')
             } < /p> <
             p className = "text-3xl font-bold mt-1" > {
-                stats ? .conversionRate || 0
+                (stats && stats.conversionRate) || 0
             } % < /p> < /
             div > <
             TrendingUp className = "h-10 w-10 text-purple-200" / >
@@ -1122,7 +1122,7 @@ aside >
             PieChart >
             <
             Pie data = {
-                stats ? .statusDistribution || []
+                (stats && stats.statusDistribution) || []
             }
             cx = "50%"
             cy = "50%"
@@ -1136,7 +1136,7 @@ aside >
                 5
             }
             dataKey = "value" > {
-                (stats ? .statusDistribution || []).map((entry, index) => ( <
+                (((stats && stats.statusDistribution) || [])).map((entry, index) => ( <
                     Cell key = {
                         `cell-${index}`
                     }
@@ -1178,11 +1178,11 @@ aside >
             Pie data = {
                 [{
                         name: t('male'),
-                        value: stats ? .genderDistribution ? .male || 0
+                        value: (stats && stats.genderDistribution && stats.genderDistribution.male) || 0
                     },
                     {
                         name: t('female'),
-                        value: stats ? .genderDistribution ? .female || 0
+                        value: (stats && stats.genderDistribution && stats.genderDistribution.female) || 0
                     }
                 ]
             }
@@ -1223,7 +1223,7 @@ aside >
             {
                 /* Employee Performance */
             } {
-                stats ? .employeePerformance ? .length > 0 && ( <
+                stats && stats.employeePerformance && stats.employeePerformance.length > 0 && ( <
                     Card >
                     <
                     CardHeader >
@@ -1287,7 +1287,7 @@ aside >
                 t('projectsSubtitle')
             } < /p> < /
             div > {
-                (user ? .role === 'SUPER_ADMIN' || user ? .role === 'ADMIN') && ( <
+                (user && (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN')) && ( <
                     Dialog open = {
                         showProjectDialog
                     }
@@ -1514,7 +1514,7 @@ aside >
                             t('viewLeads')
                         } <
                         /Button> {
-                        (user ? .role === 'SUPER_ADMIN' || user ? .role === 'ADMIN') && ( <
+                        (user && (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN')) && ( <
                             Button size = "sm"
                             variant = "outline"
                             onClick = {
@@ -1579,7 +1579,7 @@ aside >
                 t('export')
             } <
             /Button> {
-            user ? .role !== 'VIEWER' && ( <
+            user && user.role !== 'VIEWER' && ( <
                 Dialog open = {
                     showLeadDialog
                 }
@@ -1750,7 +1750,7 @@ aside >
                 SelectContent > <
                 /Select> < /
                 div > {
-                    (user ? .role === 'SUPER_ADMIN' || user ? .role === 'ADMIN') && ( <
+                    (user && (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN')) && ( <
                         div className = "space-y-2 col-span-2" >
                         <
                         Label > {
@@ -1777,7 +1777,7 @@ aside >
                         /> < /
                         SelectTrigger > <
                         SelectContent > {
-                            (projects.find(p => p.id === leadForm.projectId) ? .members || []).map((m) => ( <
+                            (((projects.find(p => p.id === leadForm.projectId) || {}).members) || []).map((m) => ( <
                                 SelectItem key = {
                                     m.id
                                 }
@@ -2030,7 +2030,7 @@ tbody className = "divide-y" > {
                 getStatusBadge(lead.status)
             } < /td> <
             td className = "p-4" > {
-                user ? .role !== 'VIEWER' && ( <
+                user && user.role !== 'VIEWER' && ( <
                     div className = "flex items-center gap-1" >
                     <
                     Button size = "sm"
@@ -2081,7 +2081,7 @@ tbody className = "divide-y" > {
                     ThumbsUp className = "h-4 w-4 text-green-500" / >
                     <
                     /Button> {
-                    (user ? .role === 'SUPER_ADMIN' || user ? .role === 'ADMIN') && ( <
+                    (user && (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN')) && ( <
                         Button size = "sm"
                         variant = "ghost"
                         onClick = {
@@ -2152,7 +2152,7 @@ div >
 {
     /* Users Tab */
 } {
-    activeTab === 'users' && (user ? .role === 'SUPER_ADMIN' || user ? .role === 'ADMIN') && ( <
+    activeTab === 'users' && user && (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') && ( <
             div className = "space-y-6" >
             <
             div className = "flex items-center justify-between" >
@@ -2271,7 +2271,7 @@ div >
             <
             /SelectTrigger> <
             SelectContent > {
-                user ? .role === 'SUPER_ADMIN' && ( <
+                (user && user.role === 'SUPER_ADMIN') && ( <
                     SelectItem value = "ADMIN" > {
                         t('admin')
                     } < /SelectItem>
@@ -2319,7 +2319,7 @@ div >
                         div className = "flex items-center gap-4" >
                         <
                         div className = "w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-full flex items-center justify-center text-white text-lg font-medium" > {
-                            u.name ? .charAt(0)
+                            (u.name ? u.name.charAt(0) : '')
                         } <
                         /div> <
                         div >
@@ -2335,7 +2335,7 @@ div >
                         } < /div> < /
                         div > <
                         /div> {
-                        user ? .role === 'SUPER_ADMIN' && u.id !== user ? .id && ( <
+                        (user && user.role === 'SUPER_ADMIN' && u.id !== user.id) && ( <
                             Button size = "sm"
                             variant = "ghost"
                             onClick = {
@@ -2401,7 +2401,7 @@ div >
                 handleSendMessage
             }
             className = "space-y-4" > {
-                user ? .role === 'SUPER_ADMIN' && ( <
+                (user && user.role === 'SUPER_ADMIN') && ( <
                     div className = "flex items-center gap-2" >
                     <
                     input type = "checkbox"
@@ -2439,7 +2439,7 @@ div >
                             setMessageForm({
                                 ...messageForm,
                                 toId: v,
-                                toName: selectedUser ? .name || ''
+                                toName: (selectedUser && selectedUser.name) || ''
                             });
                         }
                     } >
@@ -2450,7 +2450,7 @@ div >
                     <
                     /SelectTrigger> <
                     SelectContent > {
-                        users.filter(u => u.id !== user ? .id).map(u => ( <
+                        users.filter(u => !user || u.id !== user.id).map(u => ( <
                             SelectItem key = {
                                 u.id
                             }
@@ -2535,7 +2535,7 @@ div >
             Mail className = "h-4 w-4 mr-2" / > {
                 t('inbox')
             }({
-                messages.inbox ? .length || 0
+                messages.inbox ? messages.inbox.length : 0
             }) <
             /TabsTrigger> <
             TabsTrigger value = "sent" >
@@ -2543,7 +2543,7 @@ div >
             Send className = "h-4 w-4 mr-2" / > {
                 t('sent')
             }({
-                messages.sent ? .length || 0
+                messages.sent ? messages.sent.length : 0
             }) <
             /TabsTrigger> < /
             TabsList >
@@ -2557,48 +2557,50 @@ div >
             CardContent className = "p-0" >
             <
             ScrollArea className = "h-[500px]" > {
-                messages.inbox ? .length === 0 ? ( <
+                (messages.inbox ? messages.inbox.length : 0) === 0 ? ( <
                     div className = "p-8 text-center text-slate-500" > {
                         t('noMessages')
                     } < /div>
                 ) : ( <
-                    div className = "divide-y" > {
-                        messages.inbox ? .map((msg) => ( <
-                                div key = {
-                                    msg.id
-                                }
-                                className = {
-                                    `p-4 hover:bg-slate-50 ${!msg.read ? 'bg-blue-50/50' : ''}`
-                                } >
-                                <
-                                div className = "flex items-start justify-between" >
-                                <
-                                div className = "flex-1" >
-                                <
-                                div className = "flex items-center gap-2" >
-                                <
-                                span className = "font-medium" > {
-                                    msg.fromName
-                                } < /span> {
-                                msg.isBroadcast && < Badge variant = "secondary" > Broadcast < /Badge>} {!msg.read && < Badge className = "bg-blue-500" > New < /Badge >
-                            } < /
-                            div > <
-                            p className = "font-medium mt-1" > {
-                                msg.subject
-                            } < /p> <
-                            p className = "text-sm text-slate-500 mt-1 line-clamp-2" > {
-                                msg.content
-                            } < /p> <
-                            p className = "text-xs text-slate-400 mt-2" > {
-                                new Date(msg.createdAt).toLocaleString()
-                            } <
-                            /p> < /
-                            div > <
-                            /div> < /
-                            div >
-                        ))
-                } <
-                /div>
+                        div className = "divide-y" > {
+                            (messages.inbox || []).map((msg) => ( <
+                                    div key = {
+                                        msg.id
+                                    }
+                                    className = {
+                                        `p-4 hover:bg-slate-50 ${!msg.read ? 'bg-blue-50/50' : ''}`
+                                    } >
+                                    <
+                                    div className = "flex items-start justify-between" >
+                                    <
+                                    div className = "flex-1" >
+                                    <
+                                    div className = "flex items-center gap-2" >
+                                    <
+                                    span className = "font-medium" > {
+                                        msg.fromName
+                                    } < /span> {
+                                    msg.isBroadcast && < Badge variant = "secondary" > Broadcast < /Badge>
+                                } {
+                                    !msg.read && < Badge className = "bg-blue-500" > New < /Badge>
+                                } <
+                                /div> <
+                                p className = "font-medium mt-1" > {
+                                    msg.subject
+                                } < /p> <
+                                p className = "text-sm text-slate-500 mt-1 line-clamp-2" > {
+                                    msg.content
+                                } < /p> <
+                                p className = "text-xs text-slate-400 mt-2" > {
+                                    new Date(msg.createdAt).toLocaleString()
+                                } <
+                                /p> < /
+                                div > <
+                                /div> < /
+                                div >
+                            ))
+                    } <
+                    /div>
             )
         } <
         /ScrollArea> < /
@@ -2615,61 +2617,62 @@ div >
         CardContent className = "p-0" >
         <
         ScrollArea className = "h-[500px]" > {
-            messages.sent ? .length === 0 ? ( <
+            (messages.sent ? messages.sent.length : 0) === 0 ? ( <
                 div className = "p-8 text-center text-slate-500" > {
                     t('noMessages')
                 } < /div>
             ) : ( <
-                div className = "divide-y" > {
-                    messages.sent ? .map((msg) => ( <
-                        div key = {
-                            msg.id
-                        }
-                        className = "p-4 hover:bg-slate-50" >
-                        <
-                        div className = "flex items-start justify-between" >
-                        <
-                        div className = "flex-1" >
-                        <
-                        div className = "flex items-center gap-2" >
-                        <
-                        span className = "text-slate-500" > To: < /span> <
-                        span className = "font-medium" > {
-                            msg.toName
-                        } < /span> {
-                        msg.isBroadcast && < Badge variant = "secondary" > Broadcast < /Badge>} < /
-                        div > <
-                        p className = "font-medium mt-1" > {
-                            msg.subject
-                        } < /p> <
-                        p className = "text-sm text-slate-500 mt-1 line-clamp-2" > {
-                            msg.content
-                        } < /p> <
-                        p className = "text-xs text-slate-400 mt-2" > {
-                            new Date(msg.createdAt).toLocaleString()
-                        } <
-                        /p> < /
-                        div > <
-                        /div> < /
-                        div >
-                    ))
+                    div className = "divide-y" > {
+                        (messages.sent || []).map((msg) => ( <
+                                div key = {
+                                    msg.id
+                                }
+                                className = "p-4 hover:bg-slate-50" >
+                                <
+                                div className = "flex items-start justify-between" >
+                                <
+                                div className = "flex-1" >
+                                <
+                                div className = "flex items-center gap-2" >
+                                <
+                                span className = "text-slate-500" > To: < /span> <
+                                span className = "font-medium" > {
+                                    msg.toName
+                                } < /span> {
+                                msg.isBroadcast && < Badge variant = "secondary" > Broadcast < /Badge>
+                            } <
+                            /div> <
+                            p className = "font-medium mt-1" > {
+                                msg.subject
+                            } < /p> <
+                            p className = "text-sm text-slate-500 mt-1 line-clamp-2" > {
+                                msg.content
+                            } < /p> <
+                            p className = "text-xs text-slate-400 mt-2" > {
+                                new Date(msg.createdAt).toLocaleString()
+                            } <
+                            /p> < /
+                            div > <
+                            /div> < /
+                            div >
+                        ))
                 } <
                 /div>
-            )
-        } <
-        /ScrollArea> < /
-    CardContent > <
-        /Card> < /
-    TabsContent > <
-        /Tabs> < /
-    div >
+        )
+} <
+/ScrollArea> < /
+CardContent > <
+    /Card> < /
+TabsContent > <
+    /Tabs> < /
+div >
 )
 }
 
 {
     /* Activity Log Tab */
 } {
-    activeTab === 'activity' && (user ? .role === 'SUPER_ADMIN' || user ? .role === 'ADMIN') && ( <
+    activeTab === 'activity' && user && (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') && ( <
         div className = "space-y-6" >
         <
         div >
@@ -2697,7 +2700,7 @@ div >
                 div className = "flex items-start gap-4" >
                 <
                 div className = "w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white text-sm" > {
-                    activity.userName ? .charAt(0)
+                    activity.userName ? activity.userName.charAt(0) : ''
                 } <
                 /div> <
                 div className = "flex-1" >
