@@ -53,11 +53,14 @@ CREATE TABLE users (
 -- Leads table
 CREATE TABLE leads (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  project_id UUID,
   full_name VARCHAR(255) NOT NULL,
   phone VARCHAR(50) NOT NULL,
   city VARCHAR(100),
   age INTEGER,
   gender gender_type DEFAULT 'MALE',
+  diploma VARCHAR(255),
+  needs TEXT,
   status lead_status DEFAULT 'NEW',
   notes TEXT,
   assigned_to UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -66,6 +69,39 @@ CREATE TABLE leads (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Projects table
+CREATE TABLE projects (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Project members table
+CREATE TABLE project_members (
+  project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  added_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (project_id, user_id)
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'leads_project_id_fkey'
+  ) THEN
+    ALTER TABLE leads
+      ADD CONSTRAINT leads_project_id_fkey
+      FOREIGN KEY (project_id)
+      REFERENCES projects(id)
+      ON DELETE SET NULL;
+  END IF;
+END $$;
 
 -- Messages table
 CREATE TABLE messages (
@@ -104,6 +140,14 @@ CREATE INDEX idx_leads_assigned_to ON leads(assigned_to);
 CREATE INDEX idx_leads_created_by ON leads(created_by);
 CREATE INDEX idx_leads_created_at ON leads(created_at DESC);
 CREATE INDEX idx_leads_gender ON leads(gender);
+CREATE INDEX idx_leads_project_id ON leads(project_id);
+
+-- Projects indexes
+CREATE INDEX idx_projects_created_by ON projects(created_by);
+CREATE INDEX idx_projects_created_at ON projects(created_at DESC);
+
+-- Project members indexes
+CREATE INDEX idx_project_members_user_id ON project_members(user_id);
 
 -- Messages indexes
 CREATE INDEX idx_messages_from_id ON messages(from_id);
@@ -145,6 +189,12 @@ CREATE TRIGGER update_leads_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
+-- Projects updated_at trigger
+CREATE TRIGGER update_projects_updated_at
+  BEFORE UPDATE ON projects
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
 -- =============================================
 -- VIEWS
 -- =============================================
@@ -153,10 +203,12 @@ CREATE TRIGGER update_leads_updated_at
 CREATE VIEW leads_with_users AS
 SELECT 
   l.*,
+  p.name AS project_name,
   assigned.name AS assigned_to_name,
   creator.name AS created_by_name,
   updater.name AS updated_by_name
 FROM leads l
+LEFT JOIN projects p ON l.project_id = p.id
 LEFT JOIN users assigned ON l.assigned_to = assigned.id
 LEFT JOIN users creator ON l.created_by = creator.id
 LEFT JOIN users updater ON l.updated_by = updater.id;
@@ -218,6 +270,12 @@ WHERE u.role IN ('EMPLOYEE', 'ADMIN')
 GROUP BY u.id, u.name
 ORDER BY conversion_rate DESC;
 
+ALTER VIEW leads_with_users SET (security_invoker = true);
+ALTER VIEW messages_with_users SET (security_invoker = true);
+ALTER VIEW activities_with_users SET (security_invoker = true);
+ALTER VIEW dashboard_stats SET (security_invoker = true);
+ALTER VIEW employee_performance SET (security_invoker = true);
+
 -- =============================================
 -- ROW LEVEL SECURITY (RLS)
 -- =============================================
@@ -225,8 +283,14 @@ ORDER BY conversion_rate DESC;
 -- Enable RLS on all tables
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE leads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE project_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activities ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS project_id UUID REFERENCES projects(id) ON DELETE SET NULL;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS diploma VARCHAR(255);
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS needs TEXT;
 
 -- =============================================
 -- SEED DATA (Demo Users)
@@ -241,11 +305,39 @@ INSERT INTO users (email, password, name, role) VALUES
 ('viewer@crm.com', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.L6vKFzB1ZLbVyG', 'View Only User', 'VIEWER');
 
 -- =============================================
+-- SEED DATA (Demo Projects)
+-- =============================================
+INSERT INTO projects (name, description, created_by, updated_by)
+SELECT
+  x.name,
+  x.description,
+  (SELECT id FROM users WHERE role = 'SUPER_ADMIN' LIMIT 1),
+  (SELECT id FROM users WHERE role = 'SUPER_ADMIN' LIMIT 1)
+FROM (
+  VALUES
+    ('Project Alpha', 'Alpha project leads'),
+    ('Project Beta', 'Beta project leads')
+) AS x(name, description);
+
+INSERT INTO project_members (project_id, user_id, added_by)
+SELECT
+  (SELECT id FROM projects WHERE name = 'Project Alpha' LIMIT 1),
+  (SELECT id FROM users WHERE email = 'employee1@crm.com' LIMIT 1),
+  (SELECT id FROM users WHERE role = 'SUPER_ADMIN' LIMIT 1);
+
+INSERT INTO project_members (project_id, user_id, added_by)
+SELECT
+  (SELECT id FROM projects WHERE name = 'Project Beta' LIMIT 1),
+  (SELECT id FROM users WHERE email = 'employee2@crm.com' LIMIT 1),
+  (SELECT id FROM users WHERE role = 'SUPER_ADMIN' LIMIT 1);
+
+-- =============================================
 -- SAMPLE LEADS DATA
 -- =============================================
 
-INSERT INTO leads (full_name, phone, city, age, gender, status, notes, assigned_to, created_by)
+INSERT INTO leads (project_id, full_name, phone, city, age, gender, status, notes, assigned_to, created_by)
 SELECT 
+  (SELECT id FROM projects ORDER BY random() LIMIT 1),
   'Lead ' || i,
   '+1' || (1000000000 + floor(random() * 9000000000))::text,
   (ARRAY['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 'Paris', 'Casablanca', 'Dubai', 'Cairo', 'Riyadh'])[floor(random() * 10 + 1)],

@@ -77,7 +77,8 @@ Visit http://localhost:3000
 │   ├── layout.js                  # Root layout
 │   └── globals.css                # Global styles
 ├── lib/
-│   ├── supabase.js                # Supabase client
+│   ├── supabase.js                # Supabase client (anon)
+│   ├── supabase-admin.js          # Supabase admin client (service role, server-only)
 │   ├── auth-supabase.js           # Auth utilities
 │   └── translations.js            # i18n translations
 ├── components/ui/                  # shadcn components
