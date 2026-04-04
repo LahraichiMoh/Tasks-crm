@@ -1452,7 +1452,7 @@ export async function DELETE(request) {
         if (path.startsWith('/users/')) {
             const userId = path.split('/')[2];
 
-            if (currentUser.role !== ROLES.SUPER_ADMIN) {
+            if (currentUser.role !== ROLES.SUPER_ADMIN && currentUser.role !== ROLES.ADMIN) {
                 return errorResponse('Access denied', 403);
             }
 
@@ -1461,7 +1461,7 @@ export async function DELETE(request) {
                 error: fetchError
             } = await supabaseAdmin
                 .from('users')
-                .select('name')
+                .select('name, role')
                 .eq('id', userId)
                 .single();
 
@@ -1469,6 +1469,12 @@ export async function DELETE(request) {
 
             if (userId === currentUser.id) {
                 return errorResponse('Cannot delete yourself', 400);
+            }
+
+            if (currentUser.role === ROLES.ADMIN) {
+                if (user.role === ROLES.ADMIN || user.role === ROLES.SUPER_ADMIN) {
+                    return errorResponse('Access denied', 403);
+                }
             }
 
             const {

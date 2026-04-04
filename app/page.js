@@ -776,19 +776,9 @@ export default function App() {
             }
             onOpenChange = {
                 (open) => {
-                    if (!open) {
-                        confirmActionRef.current = null;
-                        setConfirmDialog({
-                            open: false,
-                            title: '',
-                            description: '',
-                            confirmLabel: ''
-                        });
-                        return;
-                    }
                     setConfirmDialog((prev) => ({
                         ...prev,
-                        open: true
+                        open
                     }));
                 }
             } >
@@ -806,7 +796,12 @@ export default function App() {
             AlertDialogHeader > <
             AlertDialogFooter >
             <
-            AlertDialogCancel > {
+            AlertDialogCancel
+            onClick = {
+                () => {
+                    confirmActionRef.current = null;
+                }
+            } > {
                 t('cancel')
             } < /AlertDialogCancel> <
             AlertDialogAction onClick = {
@@ -937,9 +932,9 @@ div className = "flex-1 min-w-0" >
     p className = "text-sm font-medium truncate" > {
         (user && user.name)
     } < /p> <
-p className = "text-xs text-white/60" > {
-    getRoleBadge(user && user.role)
-} < /p> < /
+p className = "text-xs text-white/60" >
+    {getRoleBadge(user && user.role)}
+< /p> < /
 div > <
     /div> <
 div className = "flex items-center gap-2" >
@@ -2305,7 +2300,7 @@ div >
                         } < /div> < /
                         div > <
                         /div> {
-                        (user && user.role === 'SUPER_ADMIN' && u.id !== user.id) && ( <
+                        (user && ((user.role === 'SUPER_ADMIN' && u.id !== user.id) || (user.role === 'ADMIN' && (u.role === 'EMPLOYEE' || u.role === 'VIEWER')))) && ( <
                             Button size = "sm"
                             variant = "ghost"
                             onClick = {
