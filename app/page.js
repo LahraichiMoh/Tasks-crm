@@ -751,12 +751,9 @@ export default function App() {
             className = "w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600" > {
                 t('login')
             } <
-            /Button> <
-            p className = "text-center text-white/40 text-sm mt-4" >
-            Demo: admin @crm.com / password123 <
-            /p> < /
+            /Button>  < /
             form > <
-            /CardContent> < /
+            /CardContent>  < /
             Card > <
             /div>
         );
@@ -796,8 +793,7 @@ export default function App() {
             AlertDialogHeader > <
             AlertDialogFooter >
             <
-            AlertDialogCancel
-            onClick = {
+            AlertDialogCancel onClick = {
                 () => {
                     confirmActionRef.current = null;
                 }
@@ -932,9 +928,10 @@ div className = "flex-1 min-w-0" >
     p className = "text-sm font-medium truncate" > {
         (user && user.name)
     } < /p> <
-p className = "text-xs text-white/60" >
-    {getRoleBadge(user && user.role)}
-< /p> < /
+p className = "text-xs text-white/60" > {
+        getRoleBadge(user && user.role)
+    } <
+    /p> < /
 div > <
     /div> <
 div className = "flex items-center gap-2" >
@@ -1286,7 +1283,10 @@ aside >
                     onOpenChange = {
                         setShowProjectDialog
                     } >
-                    <DialogTrigger asChild><Button className="bg-gradient-to-r from-purple-500 to-pink-500"><Plus className="h-4 w-4 mr-2" />{t('addProject')}</Button></DialogTrigger> <
+                    <
+                    DialogTrigger asChild > < Button className = "bg-gradient-to-r from-purple-500 to-pink-500" > < Plus className = "h-4 w-4 mr-2" / > {
+                        t('addProject')
+                    } < /Button></DialogTrigger > <
                     DialogContent >
                     <
                     DialogHeader >
@@ -1569,7 +1569,10 @@ aside >
                 onOpenChange = {
                     setShowLeadDialog
                 } >
-                <DialogTrigger asChild><Button className="bg-gradient-to-r from-purple-500 to-pink-500"><Plus className="h-4 w-4 mr-2" />{t('addLead')}</Button></DialogTrigger> <
+                <
+                DialogTrigger asChild > < Button className = "bg-gradient-to-r from-purple-500 to-pink-500" > < Plus className = "h-4 w-4 mr-2" / > {
+                    t('addLead')
+                } < /Button></DialogTrigger > <
                 DialogContent >
                 <
                 DialogHeader >
@@ -2144,7 +2147,10 @@ div >
             onOpenChange = {
                 setShowUserDialog
             } >
-            <DialogTrigger asChild><Button className="bg-gradient-to-r from-purple-500 to-pink-500"><Plus className="h-4 w-4 mr-2" />{t('createUser')}</Button></DialogTrigger> <
+            <
+            DialogTrigger asChild > < Button className = "bg-gradient-to-r from-purple-500 to-pink-500" > < Plus className = "h-4 w-4 mr-2" / > {
+                t('createUser')
+            } < /Button></DialogTrigger > <
             DialogContent >
             <
             DialogHeader >
@@ -2343,7 +2349,10 @@ div >
             onOpenChange = {
                 setShowMessageDialog
             } >
-            <DialogTrigger asChild><Button className="bg-gradient-to-r from-purple-500 to-pink-500"><Plus className="h-4 w-4 mr-2" />{t('newMessage')}</Button></DialogTrigger> <
+            <
+            DialogTrigger asChild > < Button className = "bg-gradient-to-r from-purple-500 to-pink-500" > < Plus className = "h-4 w-4 mr-2" / > {
+                t('newMessage')
+            } < /Button></DialogTrigger > <
             DialogContent >
             <
             DialogHeader >
