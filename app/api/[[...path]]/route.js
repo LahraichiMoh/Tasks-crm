@@ -734,7 +734,9 @@ export async function POST(request) {
                 name,
                 role
             } = body;
-            if (!email || !password || !name || !role) {
+            const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+            const normalizedName = typeof name === 'string' ? name.trim() : '';
+            if (!normalizedEmail || !password || !normalizedName || !role) {
                 return errorResponse('All fields required');
             }
 
@@ -748,13 +750,15 @@ export async function POST(request) {
 
             // Check if email exists
             const {
-                data: existing
+                data: existing,
+                error: existingError
             } = await supabaseAdmin
                 .from('users')
                 .select('id')
-                .eq('email', email)
-                .single();
+                .eq('email', normalizedEmail)
+                .maybeSingle();
 
+            if (existingError) throw existingError;
             if (existing) return errorResponse('Email already exists');
 
             const hashedPassword = await hashPassword(password);
@@ -765,9 +769,9 @@ export async function POST(request) {
             } = await supabaseAdmin
                 .from('users')
                 .insert({
-                    email,
+                    email: normalizedEmail,
                     password: hashedPassword,
-                    name,
+                    name: normalizedName,
                     role
                 })
                 .select('id, email, name, role, created_at, updated_at')

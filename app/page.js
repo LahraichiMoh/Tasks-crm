@@ -142,6 +142,8 @@ export default function App() {
     const [showMessageDialog, setShowMessageDialog] = useState(false);
     const [showStatusDialog, setShowStatusDialog] = useState(false);
     const [showProjectDialog, setShowProjectDialog] = useState(false);
+    const [projectDialogMode, setProjectDialogMode] = useState('create');
+    const [editingProjectId, setEditingProjectId] = useState(null);
     const [confirmDialog, setConfirmDialog] = useState({
         open: false,
         title: '',
@@ -203,10 +205,29 @@ export default function App() {
             ...options,
             headers
         });
-        const data = await response.json();
+        const contentType = response.headers.get('content-type') || '';
+        const text = await response.text();
+        let data = null;
 
-        if (!response.ok) throw new Error(data.error || 'Request failed');
-        return data;
+        if (text) {
+            try {
+                data = JSON.parse(text);
+            } catch (_) {
+                data = null;
+            }
+        }
+
+        if (!response.ok) {
+            const messageFromJson = data && (data.error || data.message);
+            const messageFromText = text ? text.slice(0, 200) : '';
+            const message = messageFromJson || messageFromText || `Request failed (${response.status})`;
+            throw new Error(message);
+        }
+
+        if (contentType.includes('application/json')) {
+            return data || {};
+        }
+        return data || text;
     }, [token]);
 
     // Initialize app
@@ -383,14 +404,45 @@ export default function App() {
         }
     };
 
-    const handleCreateProject = async (e) => {
+    const openCreateProjectDialog = () => {
+        setProjectDialogMode('create');
+        setEditingProjectId(null);
+        setProjectForm({
+            name: '',
+            description: '',
+            memberIds: []
+        });
+        setShowProjectDialog(true);
+    };
+
+    const openEditProjectDialog = (project) => {
+        setProjectDialogMode('edit');
+        setEditingProjectId(project.id);
+        setProjectForm({
+            name: project.name || '',
+            description: project.description || '',
+            memberIds: (project.members || []).map(m => m.id)
+        });
+        setShowProjectDialog(true);
+    };
+
+    const handleSaveProject = async (e) => {
         e.preventDefault();
         try {
-            await apiCall('/projects', {
-                method: 'POST',
-                body: JSON.stringify(projectForm)
-            });
+            if (projectDialogMode === 'edit') {
+                await apiCall(`/projects/${editingProjectId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(projectForm)
+                });
+            } else {
+                await apiCall('/projects', {
+                    method: 'POST',
+                    body: JSON.stringify(projectForm)
+                });
+            }
             setShowProjectDialog(false);
+            setProjectDialogMode('create');
+            setEditingProjectId(null);
             setProjectForm({
                 name: '',
                 description: '',
@@ -456,9 +508,14 @@ export default function App() {
     const handleCreateUser = async (e) => {
         e.preventDefault();
         try {
+            const payload = {
+                ...userForm,
+                email: (userForm.email || '').trim().toLowerCase(),
+                name: (userForm.name || '').trim()
+            };
             await apiCall('/users', {
                 method: 'POST',
-                body: JSON.stringify(userForm)
+                body: JSON.stringify(payload)
             });
             setShowUserDialog(false);
             setUserForm({
@@ -928,10 +985,10 @@ div className = "flex-1 min-w-0" >
     p className = "text-sm font-medium truncate" > {
         (user && user.name)
     } < /p> <
-p className = "text-xs text-white/60" > {
+div className = "text-xs text-white/60" > {
         getRoleBadge(user && user.role)
     } <
-    /p> < /
+    /div> < /
 div > <
     /div> <
 div className = "flex items-center gap-2" >
@@ -1281,25 +1338,40 @@ aside >
                         showProjectDialog
                     }
                     onOpenChange = {
-                        setShowProjectDialog
+                        (open) => {
+                            setShowProjectDialog(open);
+                            if (!open) {
+                                setProjectDialogMode('create');
+                                setEditingProjectId(null);
+                                setProjectForm({
+                                    name: '',
+                                    description: '',
+                                    memberIds: []
+                                });
+                            }
+                        }
                     } >
                     <
-                    DialogTrigger asChild > < Button className = "bg-gradient-to-r from-purple-500 to-pink-500" > < Plus className = "h-4 w-4 mr-2" / > {
+                    DialogTrigger onClick = {
+                        openCreateProjectDialog
+                    }
+                    className = "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-9 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600" > <
+                    Plus className = "h-4 w-4" / > {
                         t('addProject')
-                    } < /Button></DialogTrigger > <
+                    } < /DialogTrigger> <
                     DialogContent >
                     <
                     DialogHeader >
                     <
                     DialogTitle > {
-                        t('addProject')
+                        projectDialogMode === 'edit' ? t('editProject') : t('addProject')
                     } < /DialogTitle> <
                     DialogDescription > {
-                        t('createProjectDescription')
+                        projectDialogMode === 'edit' ? t('editProjectDescription') : t('createProjectDescription')
                     } < /DialogDescription> < /
                     DialogHeader > <
                     form onSubmit = {
-                        handleCreateProject
+                        handleSaveProject
                     }
                     className = "space-y-4" >
                     <
@@ -1501,6 +1573,18 @@ aside >
                             Button size = "sm"
                             variant = "outline"
                             onClick = {
+                                () => openEditProjectDialog(p)
+                            } >
+                            <
+                            Edit className = "h-4 w-4" / >
+                            <
+                            /Button>
+                        )
+                    } {
+                        (user && (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN')) && ( <
+                            Button size = "sm"
+                            variant = "outline"
+                            onClick = {
                                 () => handleDeleteProject(p.id)
                             } >
                             <
@@ -1570,9 +1654,10 @@ aside >
                     setShowLeadDialog
                 } >
                 <
-                DialogTrigger asChild > < Button className = "bg-gradient-to-r from-purple-500 to-pink-500" > < Plus className = "h-4 w-4 mr-2" / > {
+                DialogTrigger className = "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-9 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600" > <
+                Plus className = "h-4 w-4" / > {
                     t('addLead')
-                } < /Button></DialogTrigger > <
+                } < /DialogTrigger> <
                 DialogContent >
                 <
                 DialogHeader >
@@ -1975,7 +2060,7 @@ tbody className = "divide-y" > {
             td className = "p-4" >
             <
             span className = "text-sm text-slate-700" > {
-                lead.projectName || '-'
+                lead.projectName || (projects.find(p => p.id === lead.projectId) || {}).name || '-'
             } < /span> < /
             td > <
             td className = "p-4" >
@@ -2148,9 +2233,10 @@ div >
                 setShowUserDialog
             } >
             <
-            DialogTrigger asChild > < Button className = "bg-gradient-to-r from-purple-500 to-pink-500" > < Plus className = "h-4 w-4 mr-2" / > {
+            DialogTrigger className = "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-9 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600" > <
+            Plus className = "h-4 w-4" / > {
                 t('createUser')
-            } < /Button></DialogTrigger > <
+            } < /DialogTrigger> <
             DialogContent >
             <
             DialogHeader >
@@ -2350,9 +2436,10 @@ div >
                 setShowMessageDialog
             } >
             <
-            DialogTrigger asChild > < Button className = "bg-gradient-to-r from-purple-500 to-pink-500" > < Plus className = "h-4 w-4 mr-2" / > {
+            DialogTrigger className = "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-9 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600" > <
+            Plus className = "h-4 w-4" / > {
                 t('newMessage')
-            } < /Button></DialogTrigger > <
+            } < /DialogTrigger> <
             DialogContent >
             <
             DialogHeader >
