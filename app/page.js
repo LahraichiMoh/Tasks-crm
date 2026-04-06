@@ -48,6 +48,10 @@ import {
     AlertDialogTitle
 } from '@/components/ui/alert-dialog';
 import {
+    Sheet,
+    SheetContent
+} from '@/components/ui/sheet';
+import {
     Label
 } from '@/components/ui/label';
 import {
@@ -85,6 +89,7 @@ import {
     MessageSquare,
     Settings,
     LogOut,
+    Menu,
     Search,
     Phone,
     PhoneOff,
@@ -108,6 +113,9 @@ import {
     translations,
     isRTL
 } from '@/lib/translations';
+import {
+    useIsMobile
+} from '@/hooks/use-mobile';
 
 const COLORS = ['#10B981', '#EF4444', '#F59E0B', '#6366F1', '#8B5CF6'];
 const GENDER_COLORS = ['#3B82F6', '#EC4899'];
@@ -194,6 +202,15 @@ export default function App() {
     const t = useCallback((key) => (translations[locale] && translations[locale][key]) || translations.en[key] || key, [locale]);
     const rtl = isRTL(locale);
     const confirmActionRef = useRef(null);
+    const isMobile = useIsMobile();
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+    const navigateTo = (tab) => {
+        setActiveTab(tab);
+        setMobileMenuOpen(false);
+    };
+
+    const activeTabTitleKey = activeTab === 'activity' ? 'activityLog' : activeTab;
 
     const apiCall = useCallback(async (endpoint, options = {}) => {
         const headers = {
@@ -866,80 +883,266 @@ export default function App() {
             AlertDialogAction > <
             /AlertDialogFooter> < /
             AlertDialogContent > <
-            /AlertDialog> {
-            /* Sidebar */
-        } <
-        aside className = {
-            `fixed top-0 ${rtl ? 'right-0' : 'left-0'} h-full w-64 bg-slate-900 text-white z-50`
-        } >
-        <
-        div className = "p-6" >
-        <
-        div className = "flex items-center gap-3" >
-        <
-        div className = "w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center" >
-        <
-        LayoutDashboard className = "h-5 w-5" / >
-        <
-        /div> <
-    span className = "text-xl font-bold" > {
-        t('appName')
-    } < /span> < /
-    div > <
-        /div>
+            /AlertDialog>
 
-        <
-        nav className = "px-4 space-y-1" >
-        <
+            {
+                isMobile && ( <
+                    div className = "md:hidden sticky top-0 z-40 bg-slate-900 text-white border-b border-white/10" >
+                    <
+                    div className = "flex items-center justify-between p-4" >
+                    <
+                    Button variant = "ghost"
+                    size = "icon"
+                    onClick = {
+                        () => setMobileMenuOpen(true)
+                    }
+                    className = "text-white/80 hover:text-white hover:bg-white/10" >
+                    <
+                    Menu className = "h-5 w-5" / >
+                    <
+                    /Button> <
+                    span className = "text-sm font-semibold" > {
+                        t(activeTabTitleKey)
+                    } < /span> <
+                    div className = "w-9" / >
+                    <
+                    /div> < /
+                    div >
+                )
+            }
+
+            <
+            Sheet open = {
+                mobileMenuOpen
+            }
+            onOpenChange = {
+                setMobileMenuOpen
+            } >
+            <
+            SheetContent side = {
+                rtl ? 'right' : 'left'
+            }
+            className = "bg-slate-900 text-white p-0 w-72 border-none" >
+            <
+            div className = "p-6" >
+            <
+            div className = "flex items-center gap-3" >
+            <
+            div className = "w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center" >
+            <
+            LayoutDashboard className = "h-5 w-5" / >
+            <
+            /div> <
+            span className = "text-xl font-bold" > {
+                t('appName')
+            } < /span> < /
+            div > <
+            /div> <
+            nav className = "px-4 space-y-1" >
+            <
+            button onClick = {
+                () => navigateTo('dashboard')
+            }
+            className = {
+                `w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'dashboard' ? 'bg-white/10 text-white' : 'text-white/60 hover:bg-white/5'}`
+            } >
+            <
+            LayoutDashboard className = "h-5 w-5" / > {
+                t('dashboard')
+            } <
+            /button> <
+            button onClick = {
+                () => navigateTo('leads')
+            }
+            className = {
+                `w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'leads' ? 'bg-white/10 text-white' : 'text-white/60 hover:bg-white/5'}`
+            } >
+            <
+            Users className = "h-5 w-5" / > {
+                t('leads')
+            } <
+            /button> <
+            button onClick = {
+                () => navigateTo('projects')
+            }
+            className = {
+                `w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'projects' ? 'bg-white/10 text-white' : 'text-white/60 hover:bg-white/5'}`
+            } >
+            <
+            Settings className = "h-5 w-5" / > {
+                t('projects')
+            } <
+            /button> {
+            (user && (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN')) && ( <
+                button onClick = {
+                    () => navigateTo('users')
+                }
+                className = {
+                    `w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'users' ? 'bg-white/10 text-white' : 'text-white/60 hover:bg-white/5'}`
+                } >
+                <
+                UserPlus className = "h-5 w-5" / > {
+                    t('users')
+                } <
+                /button>
+            )
+        } <
         button onClick = {
-            () => setActiveTab('dashboard')
+            () => navigateTo('messages')
         }
     className = {
-            `w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'dashboard' ? 'bg-white/10 text-white' : 'text-white/60 hover:bg-white/5'}`
+            `w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'messages' ? 'bg-white/10 text-white' : 'text-white/60 hover:bg-white/5'}`
         } >
         <
-        LayoutDashboard className = "h-5 w-5" / > {
-            t('dashboard')
-        } <
-        /button> <
-    button onClick = {
-        () => setActiveTab('leads')
-    }
-    className = {
-            `w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'leads' ? 'bg-white/10 text-white' : 'text-white/60 hover:bg-white/5'}`
-        } >
-        <
-        Users className = "h-5 w-5" / > {
-            t('leads')
-        } <
-        /button> <
-    button onClick = {
-        () => setActiveTab('projects')
-    }
-    className = {
-            `w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'projects' ? 'bg-white/10 text-white' : 'text-white/60 hover:bg-white/5'}`
-        } >
-        <
-        Settings className = "h-5 w-5" / > {
-            t('projects')
+        MessageSquare className = "h-5 w-5" / > {
+            t('messages')
         } <
         /button> {
         (user && (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN')) && ( <
             button onClick = {
-                () => setActiveTab('users')
+                () => navigateTo('activity')
             }
             className = {
-                `w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'users' ? 'bg-white/10 text-white' : 'text-white/60 hover:bg-white/5'}`
+                `w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'activity' ? 'bg-white/10 text-white' : 'text-white/60 hover:bg-white/5'}`
             } >
             <
-            UserPlus className = "h-5 w-5" / > {
-                t('users')
+            Activity className = "h-5 w-5" / > {
+                t('activityLog')
             } <
             /button>
         )
 } <
+/nav> <
+div className = "p-4 border-t border-white/10 mt-4" >
+    <
+    div className = "flex items-center gap-3 mb-4" >
+    <
+    div className = "w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-full flex items-center justify-center" > {
+        (user && user.name ? user.name.charAt(0) : '')
+    } <
+    /div> <
+div className = "flex-1 min-w-0" >
+    <
+    p className = "text-sm font-medium truncate" > {
+        (user && user.name)
+    } < /p> <
+div className = "text-xs text-white/60" > {
+        getRoleBadge(user && user.role)
+    } < /div> < /
+    div > <
+    /div> <
+div className = "flex items-center gap-2" >
+    <
+    Select value = {
+        locale
+    }
+onValueChange = {
+        handleLocaleChange
+    } >
+    <
+    SelectTrigger className = "flex-1 bg-white/10 border-white/20 text-white text-sm" >
+    <
+    Globe className = "h-4 w-4 mr-2" / >
+    <
+    SelectValue / >
+    <
+    /SelectTrigger> <
+SelectContent >
+    <
+    SelectItem value = "en" > English < /SelectItem> <
+SelectItem value = "ar" > العربية < /SelectItem> <
+SelectItem value = "fr" > Français < /SelectItem> < /
+    SelectContent > <
+    /Select> <
+Button variant = "ghost"
+size = "icon"
+onClick = {
+    handleLogout
+}
+className = "text-white/60 hover:text-white hover:bg-white/10" >
+    <
+    LogOut className = "h-5 w-5" / >
+    <
+    /Button> < /
+    div > <
+    /div> < /
+    SheetContent > <
+    /Sheet>
+
+{
+    /* Sidebar */
+} <
+aside className = {
+        `fixed top-0 ${rtl ? 'right-0' : 'left-0'} h-full w-64 bg-slate-900 text-white z-50 hidden md:block`
+    } >
+    <
+    div className = "p-6" >
+    <
+    div className = "flex items-center gap-3" >
+    <
+    div className = "w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center" >
+    <
+    LayoutDashboard className = "h-5 w-5" / >
+    <
+    /div> <
+span className = "text-xl font-bold" > {
+    t('appName')
+} < /span> < /
+div > <
+    /div>
+
+    <
+    nav className = "px-4 space-y-1" >
+    <
+    button onClick = {
+        () => navigateTo('dashboard')
+    }
+className = {
+        `w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'dashboard' ? 'bg-white/10 text-white' : 'text-white/60 hover:bg-white/5'}`
+    } >
+    <
+    LayoutDashboard className = "h-5 w-5" / > {
+        t('dashboard')
+    } <
+    /button> <
 button onClick = {
-    () => setActiveTab('messages')
+    () => navigateTo('leads')
+}
+className = {
+        `w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'leads' ? 'bg-white/10 text-white' : 'text-white/60 hover:bg-white/5'}`
+    } >
+    <
+    Users className = "h-5 w-5" / > {
+        t('leads')
+    } <
+    /button> <
+button onClick = {
+    () => navigateTo('projects')
+}
+className = {
+        `w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'projects' ? 'bg-white/10 text-white' : 'text-white/60 hover:bg-white/5'}`
+    } >
+    <
+    Settings className = "h-5 w-5" / > {
+        t('projects')
+    } <
+    /button> {
+    (user && (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN')) && ( <
+        button onClick = {
+            () => navigateTo('users')
+        }
+        className = {
+            `w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'users' ? 'bg-white/10 text-white' : 'text-white/60 hover:bg-white/5'}`
+        } >
+        <
+        UserPlus className = "h-5 w-5" / > {
+            t('users')
+        } <
+        /button>
+    )
+} <
+button onClick = {
+    () => navigateTo('messages')
 }
 className = {
         `w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'messages' ? 'bg-white/10 text-white' : 'text-white/60 hover:bg-white/5'}`
@@ -957,7 +1160,7 @@ className = {
     /button> {
     (user && (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN')) && ( <
         button onClick = {
-            () => setActiveTab('activity')
+            () => navigateTo('activity')
         }
         className = {
             `w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'activity' ? 'bg-white/10 text-white' : 'text-white/60 hover:bg-white/5'}`
@@ -1032,14 +1235,14 @@ aside >
         /* Main Content */
     } <
     main className = {
-        `${rtl ? 'mr-64' : 'ml-64'} p-8`
+        `${rtl ? 'md:mr-64' : 'md:ml-64'} p-4 sm:p-6 md:p-8`
     } > {
         /* Dashboard Tab */
     } {
         activeTab === 'dashboard' && ( <
             div className = "space-y-6" >
             <
-            div className = "flex items-center justify-between" >
+            div className = "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" >
             <
             div >
             <
@@ -1482,53 +1685,26 @@ aside >
             /div>
 
             <
-            Card >
-            <
-            CardContent className = "p-0" >
-            <
-            div className = "overflow-x-auto" >
-            <
-            table className = "w-full" >
-            <
-            thead className = "bg-slate-50 border-b" >
-            <
-            tr >
-            <
-            th className = "text-left p-4 font-medium text-slate-600" > {
-                t('projectName')
-            } < /th> <
-            th className = "text-left p-4 font-medium text-slate-600" > {
-                t('description')
-            } < /th> <
-            th className = "text-left p-4 font-medium text-slate-600" > {
-                t('members')
-            } < /th> <
-            th className = "text-left p-4 font-medium text-slate-600" > {
-                t('actions')
-            } < /th> < /
-            tr > <
-            /thead> <
-            tbody className = "divide-y" > {
+            div className = "md:hidden space-y-3" > {
                 projects.map((p) => ( <
-                        tr key = {
+                        Card key = {
                             p.id
-                        }
-                        className = "hover:bg-slate-50" >
+                        } >
                         <
-                        td className = "p-4" >
+                        CardContent className = "p-4 space-y-3" >
                         <
-                        p className = "font-medium text-slate-900" > {
+                        div className = "flex items-start justify-between gap-3" >
+                        <
+                        div className = "min-w-0" >
+                        <
+                        p className = "font-medium text-slate-900 truncate" > {
                             p.name
-                        } < /p> < /
-                        td > <
-                        td className = "p-4" >
-                        <
-                        p className = "text-sm text-slate-700" > {
+                        } < /p> <
+                        p className = "text-sm text-slate-600 mt-1 line-clamp-2" > {
                             p.description || '-'
                         } < /p> < /
-                        td > <
-                        td className = "p-4" >
-                        <
+                        div > <
+                        /div> <
                         div className = "flex flex-wrap gap-2" > {
                             (p.members || []).slice(0, 6).map((m) => ( <
                                 Badge key = {
@@ -1549,11 +1725,8 @@ aside >
                                 span className = "text-sm text-slate-500" > - < /span>
                             )
                         } <
-                        /div> < /
-                        td > <
-                        td className = "p-4" >
-                        <
-                        div className = "flex items-center gap-2" >
+                        /div> <
+                        div className = "flex flex-wrap gap-2" >
                         <
                         Button size = "sm"
                         variant = "outline"
@@ -1576,8 +1749,9 @@ aside >
                                 () => openEditProjectDialog(p)
                             } >
                             <
-                            Edit className = "h-4 w-4" / >
-                            <
+                            Edit className = "h-4 w-4 mr-2" / > {
+                                t('edit')
+                            } <
                             /Button>
                         )
                     } {
@@ -1588,35 +1762,163 @@ aside >
                                 () => handleDeleteProject(p.id)
                             } >
                             <
-                            Trash2 className = "h-4 w-4" / >
-                            <
+                            Trash2 className = "h-4 w-4 mr-2" / > {
+                                t('delete')
+                            } <
                             /Button>
                         )
                     } <
                     /div> < /
-                    td > <
-                    /tr>
+                    CardContent > <
+                    /Card>
                 ))
         } {
             projects.length === 0 && ( <
-                tr >
+                Card >
                 <
-                td className = "p-8 text-center text-slate-500"
-                colSpan = {
-                    4
-                } > {
+                CardContent className = "p-8 text-center text-slate-500" > {
                     t('noProjects')
-                } <
-                /td> < /
-                tr >
+                } < /CardContent> < /
+                Card >
             )
+        } < /div>
+
+        <
+        Card className = "hidden md:block" >
+        <
+        CardContent className = "p-0" >
+        <
+        div className = "overflow-x-auto" >
+        <
+        table className = "w-full" >
+        <
+        thead className = "bg-slate-50 border-b" >
+        <
+        tr >
+        <
+        th className = "text-left p-4 font-medium text-slate-600" > {
+            t('projectName')
+        } < /th> <
+    th className = "text-left p-4 font-medium text-slate-600" > {
+        t('description')
+    } < /th> <
+    th className = "text-left p-4 font-medium text-slate-600" > {
+        t('members')
+    } < /th> <
+    th className = "text-left p-4 font-medium text-slate-600" > {
+        t('actions')
+    } < /th> < /
+    tr > <
+        /thead> <
+    tbody className = "divide-y" > {
+        projects.map((p) => ( <
+                tr key = {
+                    p.id
+                }
+                className = "hover:bg-slate-50" >
+                <
+                td className = "p-4" >
+                <
+                p className = "font-medium text-slate-900" > {
+                    p.name
+                } < /p> < /
+                td > <
+                td className = "p-4" >
+                <
+                p className = "text-sm text-slate-700" > {
+                    p.description || '-'
+                } < /p> < /
+                td > <
+                td className = "p-4" >
+                <
+                div className = "flex flex-wrap gap-2" > {
+                    (p.members || []).slice(0, 6).map((m) => ( <
+                        Badge key = {
+                            m.id
+                        }
+                        className = "bg-slate-100 text-slate-700" > {
+                            m.name
+                        } < /Badge>
+                    ))
+                } {
+                    (p.members || []).length > 6 && ( <
+                        Badge className = "bg-slate-100 text-slate-700" > +{
+                            (p.members || []).length - 6
+                        } < /Badge>
+                    )
+                } {
+                    (p.members || []).length === 0 && ( <
+                        span className = "text-sm text-slate-500" > - < /span>
+                    )
+                } <
+                /div> < /
+                td > <
+                td className = "p-4" >
+                <
+                div className = "flex items-center gap-2" >
+                <
+                Button size = "sm"
+                variant = "outline"
+                onClick = {
+                    () => {
+                        setLeadsProjectId(p.id);
+                        setLeadsPage(1);
+                        setActiveTab('leads');
+                    }
+                } >
+                <
+                Eye className = "h-4 w-4 mr-2" / > {
+                    t('viewLeads')
+                } <
+                /Button> {
+                (user && (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN')) && ( <
+                    Button size = "sm"
+                    variant = "outline"
+                    onClick = {
+                        () => openEditProjectDialog(p)
+                    } >
+                    <
+                    Edit className = "h-4 w-4" / >
+                    <
+                    /Button>
+                )
+            } {
+                (user && (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN')) && ( <
+                    Button size = "sm"
+                    variant = "outline"
+                    onClick = {
+                        () => handleDeleteProject(p.id)
+                    } >
+                    <
+                    Trash2 className = "h-4 w-4" / >
+                    <
+                    /Button>
+                )
+            } <
+            /div> < /
+            td > <
+            /tr>
+        ))
+} {
+    projects.length === 0 && ( <
+        tr >
+        <
+        td className = "p-8 text-center text-slate-500"
+        colSpan = {
+            4
+        } > {
+            t('noProjects')
         } <
-        /tbody> < /
-    table > <
-        /div> < /
-    CardContent > <
-        /Card> < /
-    div >
+        /td> < /
+        tr >
+    )
+} <
+/tbody> < /
+table > <
+    /div> < /
+CardContent > <
+    /Card> < /
+div >
 )
 }
 
