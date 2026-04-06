@@ -255,10 +255,42 @@ export default function App() {
 
         setLocale(savedLocale);
 
-        if (savedToken && savedUser) {
+        if (savedToken) {
             setToken(savedToken);
-            setUser(JSON.parse(savedUser));
             setIsAuthenticated(true);
+            if (savedUser) {
+                try {
+                    setUser(JSON.parse(savedUser));
+                } catch (_) {
+                    setUser(null);
+                }
+            }
+            fetch('/api/auth/me', {
+                headers: {
+                    'Authorization': `Bearer ${savedToken}`
+                }
+            }).then(async (res) => {
+                const text = await res.text();
+                let data = null;
+                if (text) {
+                    try {
+                        data = JSON.parse(text);
+                    } catch (_) {
+                        data = null;
+                    }
+                }
+                if (!res.ok || !data || !data.user) {
+                    throw new Error('Unauthorized');
+                }
+                setUser(data.user);
+                localStorage.setItem('crm_user', JSON.stringify(data.user));
+            }).catch(() => {
+                setToken(null);
+                setUser(null);
+                setIsAuthenticated(false);
+                localStorage.removeItem('crm_token');
+                localStorage.removeItem('crm_user');
+            });
         }
 
         // Seed database
@@ -2694,7 +2726,7 @@ div >
                         } < /div> < /
                         div > <
                         /div> {
-                        (user && ((user.role === 'SUPER_ADMIN' && u.id !== user.id) || (user.role === 'ADMIN' && (u.role === 'EMPLOYEE' || u.role === 'VIEWER')))) && ( <
+                        (user && user.role === 'SUPER_ADMIN' && u.id !== user.id) && ( <
                             Button size = "sm"
                             variant = "ghost"
                             onClick = {
