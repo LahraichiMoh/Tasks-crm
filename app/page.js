@@ -107,7 +107,8 @@ import {
     Send,
     Trash2,
     Edit,
-    Eye
+    Eye,
+    Upload
 } from 'lucide-react';
 import {
     translations,
@@ -150,6 +151,7 @@ export default function App() {
     const [showMessageDialog, setShowMessageDialog] = useState(false);
     const [showStatusDialog, setShowStatusDialog] = useState(false);
     const [showProjectDialog, setShowProjectDialog] = useState(false);
+    const [showImportDialog, setShowImportDialog] = useState(false);
     const [projectDialogMode, setProjectDialogMode] = useState('create');
     const [editingProjectId, setEditingProjectId] = useState(null);
     const [confirmDialog, setConfirmDialog] = useState({
@@ -178,6 +180,12 @@ export default function App() {
         needs: '',
         assignedTo: ''
     });
+    const [importForm, setImportForm] = useState({
+        projectId: '',
+        assignedTo: '',
+        leads: []
+    });
+    const [importingLeads, setImportingLeads] = useState(false);
     const [projectForm, setProjectForm] = useState({
         name: '',
         description: '',
@@ -418,6 +426,150 @@ export default function App() {
     const handleLocaleChange = (newLocale) => {
         setLocale(newLocale);
         localStorage.setItem('crm_locale', newLocale);
+    };
+
+    const parseCsvLine = (line) => {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            if (ch === '"') {
+                const next = line[i + 1];
+                if (inQuotes && next === '"') {
+                    current += '"';
+                    i++;
+                    continue;
+                }
+                inQuotes = !inQuotes;
+                continue;
+            }
+            if (ch === ',' && !inQuotes) {
+                result.push(current);
+                current = '';
+                continue;
+            }
+            current += ch;
+        }
+        result.push(current);
+        return result.map(v => String(v).trim());
+    };
+
+    const parseLeadsCsv = (csvText) => {
+        const lines = String(csvText || '')
+            .replace(/\r\n/g, '\n')
+            .replace(/\r/g, '\n')
+            .split('\n')
+            .map(l => l.trim())
+            .filter(Boolean);
+
+        if (lines.length < 2) throw new Error('CSV must have a header row and at least 1 data row');
+
+        const header = parseCsvLine(lines[0]).map(h => h.toLowerCase());
+        const idx = (names) => header.findIndex(h => names.includes(h));
+
+        const fullNameIdx = idx(['fullname', 'full_name', 'name']);
+        const phoneIdx = idx(['phone', 'phonenumber', 'phone_number']);
+        const cityIdx = idx(['city']);
+        const ageIdx = idx(['age']);
+        const genderIdx = idx(['gender']);
+        const diplomaIdx = idx(['diploma']);
+        const needsIdx = idx(['needs']);
+        const assignedToIdx = idx(['assignedto', 'assigned_to']);
+
+        if (fullNameIdx === -1 || phoneIdx === -1) {
+            throw new Error('CSV header must include fullName and phone columns');
+        }
+
+        const leads = [];
+        for (let i = 1; i < lines.length; i++) {
+            const cols = parseCsvLine(lines[i]);
+            const fullName = cols[fullNameIdx] ? String(cols[fullNameIdx]).trim() : '';
+            const phone = cols[phoneIdx] ? String(cols[phoneIdx]).trim() : '';
+            if (!fullName || !phone) continue;
+
+            const ageRaw = ageIdx !== -1 ? cols[ageIdx] : '';
+            const age = ageRaw ? parseInt(ageRaw) : null;
+            const genderRaw = genderIdx !== -1 ? String(cols[genderIdx] || '').toUpperCase() : '';
+            const gender = genderRaw === 'FEMALE' ? 'FEMALE' : 'MALE';
+
+            leads.push({
+                fullName,
+                phone,
+                city: cityIdx !== -1 ? (cols[cityIdx] || '') : '',
+                age: Number.isFinite(age) ? age : null,
+                gender,
+                diploma: diplomaIdx !== -1 ? (cols[diplomaIdx] || '') : '',
+                needs: needsIdx !== -1 ? (cols[needsIdx] || '') : '',
+                assignedTo: assignedToIdx !== -1 ? (cols[assignedToIdx] || '') : ''
+            });
+        }
+        if (leads.length === 0) throw new Error('No valid leads found in CSV');
+        return leads;
+    };
+
+    const downloadLeadsTemplate = () => {
+        const header = 'fullName,phone,city,age,gender,diploma,needs';
+        const rows = [
+            'John Doe,+212600000001,Casablanca,30,MALE,Bac+2,English course',
+            'Sara Ali,+212600000002,Rabat,26,FEMALE,Licence,Job placement'
+        ];
+        const csv = [header, ...rows].join('\n');
+        const blob = new Blob([csv], {
+            type: 'text/csv;charset=utf-8;'
+        });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'leads-template.csv';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+    };
+
+    const handleImportFileChange = async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const text = await file.text();
+        const leads = parseLeadsCsv(text);
+        setImportForm((prev) => ({
+            ...prev,
+            leads
+        }));
+        e.target.value = '';
+    };
+
+    const handleImportLeads = async (e) => {
+        e.preventDefault();
+        try {
+            setImportingLeads(true);
+            const isAdmin = !!user && (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN');
+            const payload = {
+                projectId: importForm.projectId,
+                leads: importForm.leads
+            };
+            if (isAdmin) payload.assignedTo = importForm.assignedTo;
+
+            await apiCall('/leads/import', {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+
+            setShowImportDialog(false);
+            setImportForm({
+                projectId: importForm.projectId,
+                assignedTo: '',
+                leads: []
+            });
+            fetchLeads();
+            fetchDashboardStats();
+        } catch (error) {
+            alert(error.message);
+        } finally {
+            setImportingLeads(false);
+        }
     };
 
     const handleCreateLead = async (e) => {
@@ -710,11 +862,10 @@ export default function App() {
             NO_ANSWER: t('noAnswer'),
             PHONE_OFF: t('phoneOff')
         };
-        return <Badge className = {
-            styles[status] || 'bg-gray-100'
-        } > {
-            labels[status] || status
-        } < /Badge>;
+        return Badge({
+            className: styles[status] || 'bg-gray-100',
+            children: labels[status] || status
+        });
     };
 
     const getRoleBadge = (role) => {
@@ -730,11 +881,10 @@ export default function App() {
             EMPLOYEE: t('employee'),
             VIEWER: t('viewer')
         };
-        return <Badge className = {
-            styles[role]
-        } > {
-            labels[role]
-        } < /Badge>;
+        return Badge({
+            className: styles[role],
+            children: labels[role]
+        });
     };
 
     if (loading) {
@@ -1059,9 +1209,9 @@ div className = "flex-1 min-w-0" >
         (user && user.name)
     } < /p> <
 div className = "text-xs text-white/60" > {
-        getRoleBadge(user && user.role)
-    } < /div> < /
-    div > <
+    getRoleBadge(user && user.role)
+} < /div> < /
+div > <
     /div> <
 div className = "flex items-center gap-2" >
     <
@@ -1084,7 +1234,7 @@ SelectContent >
     SelectItem value = "en" > English < /SelectItem> <
 SelectItem value = "ar" > العربية < /SelectItem> <
 SelectItem value = "fr" > Français < /SelectItem> < /
-    SelectContent > <
+SelectContent > <
     /Select> <
 Button variant = "ghost"
 size = "icon"
@@ -1096,9 +1246,9 @@ className = "text-white/60 hover:text-white hover:bg-white/10" >
     LogOut className = "h-5 w-5" / >
     <
     /Button> < /
-    div > <
+div > <
     /div> < /
-    SheetContent > <
+SheetContent > <
     /Sheet>
 
 {
@@ -1958,350 +2108,518 @@ div >
     /* Leads Tab */
 } {
     activeTab === 'leads' && ( <
-            div className = "space-y-6" >
-            <
-            div className = "flex items-center justify-between" >
-            <
-            div >
-            <
-            h1 className = "text-3xl font-bold text-slate-900" > {
-                t('leads')
-            } < /h1> <
-            p className = "text-slate-500 mt-1" > Manage your customer leads < /p> < /
-            div > <
-            div className = "flex items-center gap-3" >
-            <
-            Button variant = "outline"
-            onClick = {
-                handleExportCSV
+        div className = "space-y-6" >
+        <
+        div className = "flex items-center justify-between" >
+        <
+        div >
+        <
+        h1 className = "text-3xl font-bold text-slate-900" > {
+            t('leads')
+        } < /h1> <
+        p className = "text-slate-500 mt-1" > Manage your customer leads < /p> < /
+        div > <
+        div className = "flex items-center gap-3" >
+        <
+        Button variant = "outline"
+        onClick = {
+            handleExportCSV
+        } >
+        <
+        Download className = "h-4 w-4 mr-2" / > {
+            t('export')
+        } <
+        /Button> {
+        user && user.role !== 'VIEWER' && ( <
+            Dialog open = {
+                showImportDialog
+            }
+            onOpenChange = {
+                (open) => {
+                    setShowImportDialog(open);
+                    if (!open) {
+                        setImportForm({
+                            projectId: '',
+                            assignedTo: '',
+                            leads: []
+                        });
+                        setImportingLeads(false);
+                    }
+                }
             } >
             <
-            Download className = "h-4 w-4 mr-2" / > {
-                t('export')
+            DialogTrigger className = "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-9 px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50" > <
+            Upload className = "h-4 w-4" / > {
+                t('importCsv')
+            } < /DialogTrigger> <
+            DialogContent >
+            <
+            DialogHeader >
+            <
+            DialogTitle > {
+                t('importLeads')
+            } < /DialogTitle> <
+            DialogDescription > {
+                t('importLeadsDescription')
+            } < /DialogDescription> < /
+            DialogHeader > <
+            form onSubmit = {
+                handleImportLeads
+            }
+            className = "space-y-4" >
+            <
+            div className = "space-y-2" >
+            <
+            Label > {
+                t('project')
+            }* < /Label> <
+            Select value = {
+                importForm.projectId
+            }
+            onValueChange = {
+                (v) => setImportForm({
+                    ...importForm,
+                    projectId: v,
+                    assignedTo: ''
+                })
+            } >
+            <
+            SelectTrigger >
+            <
+            SelectValue placeholder = {
+                t('selectProject')
+            }
+            /> < /
+            SelectTrigger > <
+            SelectContent > {
+                projects.map((p) => ( <
+                    SelectItem key = {
+                        p.id
+                    }
+                    value = {
+                        p.id
+                    } > {
+                        p.name
+                    } < /SelectItem>
+                ))
             } <
-            /Button> {
-            user && user.role !== 'VIEWER' && ( <
-                Dialog open = {
-                    showLeadDialog
-                }
-                onOpenChange = {
-                    setShowLeadDialog
-                } >
-                <
-                DialogTrigger className = "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-9 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600" > <
-                Plus className = "h-4 w-4" / > {
-                    t('addLead')
-                } < /DialogTrigger> <
-                DialogContent >
-                <
-                DialogHeader >
-                <
-                DialogTitle > {
-                    t('addLead')
-                } < /DialogTitle> <
-                DialogDescription > Create a new lead in the system < /DialogDescription> < /
-                DialogHeader > <
-                form onSubmit = {
-                    handleCreateLead
-                }
-                className = "space-y-4" >
-                <
-                div className = "grid grid-cols-2 gap-4" >
-                <
-                div className = "space-y-2 col-span-2" >
+            /SelectContent> < /
+            Select > <
+            /div> {
+            (user && (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN')) && ( <
+                div className = "space-y-2" >
                 <
                 Label > {
-                    t('project')
+                    t('assignedTo')
                 }* < /Label> <
                 Select value = {
-                    leadForm.projectId
+                    importForm.assignedTo
                 }
                 onValueChange = {
-                    (v) => setLeadForm({
-                        ...leadForm,
-                        projectId: v,
-                        assignedTo: ''
+                    (v) => setImportForm({
+                        ...importForm,
+                        assignedTo: v
                     })
+                }
+                disabled = {
+                    !importForm.projectId
                 } >
                 <
                 SelectTrigger >
                 <
                 SelectValue placeholder = {
-                    t('selectProject')
+                    importForm.projectId ? t('selectUser') : t('selectProject')
                 }
                 /> < /
                 SelectTrigger > <
                 SelectContent > {
-                    projects.map((p) => ( <
+                    (((projects.find(p => p.id === importForm.projectId) || {}).members) || []).map((m) => ( <
                         SelectItem key = {
-                            p.id
+                            m.id
                         }
                         value = {
-                            p.id
+                            m.id
                         } > {
-                            p.name
+                            m.name
                         } < /SelectItem>
                     ))
                 } <
                 /SelectContent> < /
                 Select > <
-                /div> <
-                div className = "space-y-2" >
-                <
-                Label > {
-                    t('fullName')
-                }* < /Label> <
-                Input value = {
-                    leadForm.fullName
+                /div>
+            )
+        } <
+        div className = "space-y-2" >
+        <
+        Label > {
+            t('csvFile')
+        }* < /Label> <
+        Input type = "file"
+        accept = ".csv,text/csv"
+        onChange = {
+            handleImportFileChange
+        }
+        /> <
+        div className = "flex items-center justify-between gap-3" >
+        <
+        p className = "text-sm text-slate-500" > {
+            t('rowsParsed')
+        }: {
+            importForm.leads.length
+        } < /p> <
+        Button type = "button"
+        variant = "outline"
+        onClick = {
+            downloadLeadsTemplate
+        } > {
+            t('downloadTemplate')
+        } < /Button> < /
+        div > < /
+        div > <
+        div className = "flex justify-end gap-3" >
+        <
+        Button type = "button"
+        variant = "outline"
+        onClick = {
+            () => setShowImportDialog(false)
+        } > {
+            t('cancel')
+        } <
+        /Button> <
+        Button type = "submit"
+        disabled = {
+            importingLeads || !importForm.projectId || importForm.leads.length === 0 || ((user && (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN')) && !importForm.assignedTo)
+        } > {
+            importingLeads ? t('uploading') : t('upload')
+        } < /Button> < /
+        div > <
+        /form> < /
+        DialogContent > <
+        /Dialog>
+    )
+} {
+    user && user.role !== 'VIEWER' && ( <
+        Dialog open = {
+            showLeadDialog
+        }
+        onOpenChange = {
+            setShowLeadDialog
+        } >
+        <
+        DialogTrigger className = "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-9 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600" > <
+        Plus className = "h-4 w-4" / > {
+            t('addLead')
+        } < /DialogTrigger> <
+        DialogContent >
+        <
+        DialogHeader >
+        <
+        DialogTitle > {
+            t('addLead')
+        } < /DialogTitle> <
+        DialogDescription > Create a new lead in the system < /DialogDescription> < /
+        DialogHeader > <
+        form onSubmit = {
+            handleCreateLead
+        }
+        className = "space-y-4" >
+        <
+        div className = "grid grid-cols-2 gap-4" >
+        <
+        div className = "space-y-2 col-span-2" >
+        <
+        Label > {
+            t('project')
+        }* < /Label> <
+        Select value = {
+            leadForm.projectId
+        }
+        onValueChange = {
+            (v) => setLeadForm({
+                ...leadForm,
+                projectId: v,
+                assignedTo: ''
+            })
+        } >
+        <
+        SelectTrigger >
+        <
+        SelectValue placeholder = {
+            t('selectProject')
+        }
+        /> < /
+        SelectTrigger > <
+        SelectContent > {
+            projects.map((p) => ( <
+                SelectItem key = {
+                    p.id
                 }
-                onChange = {
-                    (e) => setLeadForm({
-                        ...leadForm,
-                        fullName: e.target.value
-                    })
-                }
-                required /
-                >
-                <
-                /div> <
-                div className = "space-y-2" >
-                <
-                Label > {
-                    t('phone')
-                }* < /Label> <
-                Input value = {
-                    leadForm.phone
-                }
-                onChange = {
-                    (e) => setLeadForm({
-                        ...leadForm,
-                        phone: e.target.value
-                    })
-                }
-                required /
-                >
-                <
-                /div> <
-                div className = "space-y-2" >
-                <
-                Label > {
-                    t('city')
-                } < /Label> <
-                Input value = {
-                    leadForm.city
-                }
-                onChange = {
-                    (e) => setLeadForm({
-                        ...leadForm,
-                        city: e.target.value
-                    })
-                }
-                /> < /
-                div > <
-                div className = "space-y-2" >
-                <
-                Label > {
-                    t('age')
-                } < /Label> <
-                Input type = "number"
                 value = {
-                    leadForm.age
-                }
-                onChange = {
-                    (e) => setLeadForm({
-                        ...leadForm,
-                        age: e.target.value
-                    })
-                }
-                /> < /
-                div > <
+                    p.id
+                } > {
+                    p.name
+                } < /SelectItem>
+            ))
+        } <
+        /SelectContent> < /
+        Select > <
+        /div> <
+        div className = "space-y-2" >
+        <
+        Label > {
+            t('fullName')
+        }* < /Label> <
+        Input value = {
+            leadForm.fullName
+        }
+        onChange = {
+            (e) => setLeadForm({
+                ...leadForm,
+                fullName: e.target.value
+            })
+        }
+        required /
+        >
+        <
+        /div> <
+        div className = "space-y-2" >
+        <
+        Label > {
+            t('phone')
+        }* < /Label> <
+        Input value = {
+            leadForm.phone
+        }
+        onChange = {
+            (e) => setLeadForm({
+                ...leadForm,
+                phone: e.target.value
+            })
+        }
+        required /
+        >
+        <
+        /div> <
+        div className = "space-y-2" >
+        <
+        Label > {
+            t('city')
+        } < /Label> <
+        Input value = {
+            leadForm.city
+        }
+        onChange = {
+            (e) => setLeadForm({
+                ...leadForm,
+                city: e.target.value
+            })
+        }
+        /> < /
+        div > <
+        div className = "space-y-2" >
+        <
+        Label > {
+            t('age')
+        } < /Label> <
+        Input type = "number"
+        value = {
+            leadForm.age
+        }
+        onChange = {
+            (e) => setLeadForm({
+                ...leadForm,
+                age: e.target.value
+            })
+        }
+        /> < /
+        div > <
+        div className = "space-y-2 col-span-2" >
+        <
+        Label > {
+            t('gender')
+        } < /Label> <
+        Select value = {
+            leadForm.gender
+        }
+        onValueChange = {
+            (v) => setLeadForm({
+                ...leadForm,
+                gender: v
+            })
+        } >
+        <
+        SelectTrigger >
+        <
+        SelectValue / >
+        <
+        /SelectTrigger> <
+        SelectContent >
+        <
+        SelectItem value = "MALE" > {
+            t('male')
+        } < /SelectItem> <
+        SelectItem value = "FEMALE" > {
+            t('female')
+        } < /SelectItem> < /
+        SelectContent > <
+        /Select> < /
+        div > {
+            (user && (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN')) && ( <
                 div className = "space-y-2 col-span-2" >
                 <
                 Label > {
-                    t('gender')
-                } < /Label> <
+                    t('assignedTo')
+                }* < /Label> <
                 Select value = {
-                    leadForm.gender
+                    leadForm.assignedTo
                 }
                 onValueChange = {
                     (v) => setLeadForm({
                         ...leadForm,
-                        gender: v
+                        assignedTo: v
                     })
+                }
+                disabled = {
+                    !leadForm.projectId
                 } >
                 <
                 SelectTrigger >
                 <
-                SelectValue / >
-                <
-                /SelectTrigger> <
-                SelectContent >
-                <
-                SelectItem value = "MALE" > {
-                    t('male')
-                } < /SelectItem> <
-                SelectItem value = "FEMALE" > {
-                    t('female')
-                } < /SelectItem> < /
-                SelectContent > <
-                /Select> < /
-                div > {
-                    (user && (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN')) && ( <
-                        div className = "space-y-2 col-span-2" >
-                        <
-                        Label > {
-                            t('assignedTo')
-                        }* < /Label> <
-                        Select value = {
-                            leadForm.assignedTo
-                        }
-                        onValueChange = {
-                            (v) => setLeadForm({
-                                ...leadForm,
-                                assignedTo: v
-                            })
-                        }
-                        disabled = {
-                            !leadForm.projectId
-                        } >
-                        <
-                        SelectTrigger >
-                        <
-                        SelectValue placeholder = {
-                            leadForm.projectId ? t('selectUser') : t('selectProject')
-                        }
-                        /> < /
-                        SelectTrigger > <
-                        SelectContent > {
-                            (((projects.find(p => p.id === leadForm.projectId) || {}).members) || []).map((m) => ( <
-                                SelectItem key = {
-                                    m.id
-                                }
-                                value = {
-                                    m.id
-                                } > {
-                                    m.name
-                                } < /SelectItem>
-                            ))
-                        } <
-                        /SelectContent> < /
-                        Select > <
-                        /div>
-                    )
-                } <
-                div className = "space-y-2" >
-                <
-                Label > {
-                    t('diploma')
-                } < /Label> <
-                Input value = {
-                    leadForm.diploma
-                }
-                onChange = {
-                    (e) => setLeadForm({
-                        ...leadForm,
-                        diploma: e.target.value
-                    })
+                SelectValue placeholder = {
+                    leadForm.projectId ? t('selectUser') : t('selectProject')
                 }
                 /> < /
-                div > <
-                div className = "space-y-2" >
-                <
-                Label > {
-                    t('needs')
-                } < /Label> <
-                Input value = {
-                    leadForm.needs
-                }
-                onChange = {
-                    (e) => setLeadForm({
-                        ...leadForm,
-                        needs: e.target.value
-                    })
-                }
-                /> < /
-                div > <
-                /div> <
-                div className = "flex justify-end gap-3" >
-                <
-                Button type = "button"
-                variant = "outline"
-                onClick = {
-                    () => setShowLeadDialog(false)
-                } > {
-                    t('cancel')
+                SelectTrigger > <
+                SelectContent > {
+                    (((projects.find(p => p.id === leadForm.projectId) || {}).members) || []).map((m) => ( <
+                        SelectItem key = {
+                            m.id
+                        }
+                        value = {
+                            m.id
+                        } > {
+                            m.name
+                        } < /SelectItem>
+                    ))
                 } <
-                /Button> <
-                Button type = "submit" > {
-                    t('save')
-                } < /Button> < /
-                div > <
-                /form> < /
-                DialogContent > <
-                /Dialog>
+                /SelectContent> < /
+                Select > <
+                /div>
             )
         } <
-        /div> < /
-    div >
-
-        {
-            /* Filters */
-        } <
-        Card >
+        div className = "space-y-2" >
         <
-        CardContent className = "p-4" >
-        <
-        div className = "flex items-center gap-4" >
-        <
-        div className = "flex-1 relative" >
-        <
-        Search className = "absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" / >
-        <
-        Input placeholder = {
-            t('search') + '...'
+        Label > {
+            t('diploma')
+        } < /Label> <
+        Input value = {
+            leadForm.diploma
         }
-    value = {
-        leadsSearch
-    }
-    onChange = {
-        (e) => setLeadsSearch(e.target.value)
-    }
-    className = "pl-10" /
-        >
+        onChange = {
+            (e) => setLeadForm({
+                ...leadForm,
+                diploma: e.target.value
+            })
+        }
+        /> < /
+        div > <
+        div className = "space-y-2" >
         <
+        Label > {
+            t('needs')
+        } < /Label> <
+        Input value = {
+            leadForm.needs
+        }
+        onChange = {
+            (e) => setLeadForm({
+                ...leadForm,
+                needs: e.target.value
+            })
+        }
+        /> < /
+        div > <
         /div> <
-    Select value = {
-        leadsProjectId || 'ALL'
-    }
-    onValueChange = {
-            (v) => {
-                setLeadsProjectId(v === 'ALL' ? '' : v);
-                setLeadsPage(1);
-            }
-        } >
+        div className = "flex justify-end gap-3" >
         <
-        SelectTrigger className = "w-56" >
-        <
-        SelectValue placeholder = {
-            t('project')
-        }
-    /> < /
-    SelectTrigger > <
-        SelectContent >
-        <
-        SelectItem value = "ALL" > {
-            t('allProjects')
-        } < /SelectItem> {
-    projects.map((p) => ( <
-        SelectItem key = {
-            p.id
-        }
-        value = {
-            p.id
+        Button type = "button"
+        variant = "outline"
+        onClick = {
+            () => setShowLeadDialog(false)
         } > {
-            p.name
-        } < /SelectItem>
-    ))
+            t('cancel')
+        } <
+        /Button> <
+        Button type = "submit" > {
+            t('save')
+        } < /Button> < /
+        div > <
+        /form> < /
+        DialogContent > <
+        /Dialog>
+    )
+} <
+/div> < /
+div >
+
+    {
+        /* Filters */
+    } <
+    Card >
+    <
+    CardContent className = "p-4" >
+    <
+    div className = "flex items-center gap-4" >
+    <
+    div className = "flex-1 relative" >
+    <
+    Search className = "absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" / >
+    <
+    Input placeholder = {
+        t('search') + '...'
+    }
+value = {
+    leadsSearch
+}
+onChange = {
+    (e) => setLeadsSearch(e.target.value)
+}
+className = "pl-10" /
+    >
+    <
+    /div> <
+Select value = {
+    leadsProjectId || 'ALL'
+}
+onValueChange = {
+        (v) => {
+            setLeadsProjectId(v === 'ALL' ? '' : v);
+            setLeadsPage(1);
+        }
+    } >
+    <
+    SelectTrigger className = "w-56" >
+    <
+    SelectValue placeholder = {
+        t('project')
+    }
+/> < /
+SelectTrigger > <
+    SelectContent >
+    <
+    SelectItem value = "ALL" > {
+        t('allProjects')
+    } < /SelectItem> {
+projects.map((p) => ( <
+    SelectItem key = {
+        p.id
+    }
+    value = {
+        p.id
+    } > {
+        p.name
+    } < /SelectItem>
+))
 } <
 /SelectContent> < /
 Select > <
