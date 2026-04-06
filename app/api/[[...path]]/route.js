@@ -860,6 +860,120 @@ export async function POST(request) {
             }, 201);
         }
 
+        if (path === '/leads/import') {
+            const currentUser = await getCurrentUser(request);
+            if (!currentUser) return errorResponse('Unauthorized', 401);
+
+            if (currentUser.role === ROLES.VIEWER) {
+                return errorResponse('Access denied', 403);
+            }
+
+            const {
+                projectId,
+                assignedTo,
+                leads
+            } = body;
+
+            if (!projectId) return errorResponse('Project required', 400);
+            if (!Array.isArray(leads) || leads.length === 0) return errorResponse('Leads array required', 400);
+
+            if (currentUser.role === ROLES.EMPLOYEE) {
+                const allowed = await isUserInProject(currentUser.id, projectId);
+                if (!allowed) return errorResponse('Access denied', 403);
+            }
+
+            const isAdmin = currentUser.role === ROLES.ADMIN || currentUser.role === ROLES.SUPER_ADMIN;
+
+            if (isAdmin && !assignedTo) {
+                const anyWithoutAssignee = leads.some(l => !l || !l.assignedTo);
+                if (anyWithoutAssignee) return errorResponse('Assigned user required (set assignedTo or per-lead assignedTo)', 400);
+            }
+
+            if (!isAdmin && assignedTo && assignedTo !== currentUser.id) {
+                return errorResponse('Access denied', 403);
+            }
+
+            const effectiveAssignedToByRow = leads.map(l => (l && l.assignedTo) || assignedTo || currentUser.id);
+            const uniqueAssignees = Array.from(new Set(effectiveAssignedToByRow.filter(Boolean)));
+            for (const userId of uniqueAssignees) {
+                const member = await isUserInProject(userId, projectId);
+                if (!member) return errorResponse('Assignee is not in this project', 400);
+            }
+
+            if (isAdmin && uniqueAssignees.length > 0) {
+                const {
+                    data: assignees,
+                    error: assigneesError
+                } = await supabaseAdmin
+                    .from('users')
+                    .select('id, role')
+                    .in('id', uniqueAssignees);
+                if (assigneesError) throw assigneesError;
+
+                const roleById = new Map((assignees || []).map(u => [u.id, u.role]));
+                for (const userId of uniqueAssignees) {
+                    const role = roleById.get(userId);
+                    if (!role) return errorResponse('Assigned user not found', 400);
+                    if (currentUser.role === ROLES.ADMIN && role !== ROLES.EMPLOYEE) {
+                        return errorResponse('Admin can only assign leads to employees', 403);
+                    }
+                    if (currentUser.role === ROLES.SUPER_ADMIN && role === ROLES.VIEWER) {
+                        return errorResponse('Cannot assign leads to viewers', 403);
+                    }
+                }
+            }
+
+            const rows = leads.map((l, idx) => {
+                const fullName = (l && l.fullName ? String(l.fullName).trim() : '');
+                const phone = (l && l.phone ? String(l.phone).trim() : '');
+
+                if (!fullName || !phone) {
+                    throw new Error(`Row ${idx + 1}: fullName and phone required`);
+                }
+
+                const ageValue = l && l.age !== undefined && l.age !== null && String(l.age).trim() !== '' ? parseInt(l.age) : null;
+                const genderValue = l && l.gender ? String(l.gender).toUpperCase() : 'MALE';
+                const assigneeValue = (l && l.assignedTo) || assignedTo || currentUser.id;
+
+                return {
+                    project_id: projectId,
+                    full_name: fullName,
+                    phone,
+                    city: l && l.city !== undefined ? (l.city ? String(l.city) : null) : null,
+                    age: Number.isFinite(ageValue) ? ageValue : null,
+                    gender: genderValue === 'FEMALE' ? 'FEMALE' : 'MALE',
+                    diploma: l && l.diploma !== undefined ? (l.diploma ? String(l.diploma) : null) : null,
+                    needs: l && l.needs !== undefined ? (l.needs ? String(l.needs) : null) : null,
+                    status: 'NEW',
+                    assigned_to: assigneeValue,
+                    created_by: currentUser.id,
+                    updated_by: currentUser.id
+                };
+            });
+
+            const insertedIds = [];
+            const chunkSize = 500;
+            for (let i = 0; i < rows.length; i += chunkSize) {
+                const chunk = rows.slice(i, i + chunkSize);
+                const {
+                    data: inserted,
+                    error
+                } = await supabaseAdmin
+                    .from('leads')
+                    .insert(chunk)
+                    .select('id');
+                if (error) throw error;
+                (inserted || []).forEach(r => insertedIds.push(r.id));
+            }
+
+            await logActivity(currentUser.id, 'LEADS_IMPORTED', `Imported ${rows.length} leads`, 'PROJECT', projectId);
+
+            return jsonResponse({
+                success: true,
+                inserted: insertedIds.length
+            }, 201);
+        }
+
         // Create lead
         if (path === '/leads') {
             const currentUser = await getCurrentUser(request);
