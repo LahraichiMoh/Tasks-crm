@@ -77,6 +77,20 @@ async function isUserInProject(userId, projectId) {
     return !!data;
 }
 
+async function getProjectMemberIds(projectId) {
+    const supabaseAdmin = getSupabaseAdmin();
+    const {
+        data,
+        error
+    } = await supabaseAdmin
+        .from('project_members')
+        .select('user_id')
+        .eq('project_id', projectId);
+
+    if (error) throw error;
+    return (data || []).map(r => r.user_id);
+}
+
 export async function OPTIONS() {
     return new NextResponse(null, {
         status: 200,
@@ -373,6 +387,17 @@ export async function GET(request) {
 
             if (projectId) {
                 query = query.eq('project_id', projectId);
+                const memberIds = await getProjectMemberIds(projectId);
+                if (memberIds.length === 0) {
+                    return jsonResponse({
+                        items: [],
+                        total: 0,
+                        page,
+                        limit,
+                        totalPages: 0
+                    });
+                }
+                query = query.in('assigned_to', memberIds);
                 if (user.role === ROLES.EMPLOYEE || user.role === ROLES.VIEWER) {
                     const allowed = await isUserInProject(user.id, projectId);
                     if (!allowed) return errorResponse('Access denied', 403);
@@ -451,6 +476,19 @@ export async function GET(request) {
 
             if (projectId) {
                 query = query.eq('project_id', projectId);
+                const memberIds = await getProjectMemberIds(projectId);
+                if (memberIds.length === 0) {
+                    const headers = ['Project', 'Full Name', 'Phone', 'City', 'Age', 'Gender', 'Diploma', 'Needs', 'Status', 'Notes', 'Assigned To', 'Created At'];
+                    return new NextResponse(headers.join(',') + '\n', {
+                        status: 200,
+                        headers: {
+                            ...corsHeaders,
+                            'Content-Type': 'text/csv',
+                            'Content-Disposition': 'attachment; filename=leads.csv'
+                        }
+                    });
+                }
+                query = query.in('assigned_to', memberIds);
                 if (user.role === ROLES.EMPLOYEE || user.role === ROLES.VIEWER) {
                     const allowed = await isUserInProject(user.id, projectId);
                     if (!allowed) return errorResponse('Access denied', 403);

@@ -887,6 +887,20 @@ export default function App() {
         });
     };
 
+    const getLeadAssigneeName = (lead) => {
+        if (lead && lead.assignedToName) return lead.assignedToName;
+
+        const fromUsers = (users.find(u => u.id === (lead && lead.assignedTo)) || {}).name;
+        if (fromUsers) return fromUsers;
+
+        const project = projects.find(p => p.id === (lead && lead.projectId)) || {};
+        const members = project.members || [];
+        const fromMembers = (members.find(m => m.id === (lead && lead.assignedTo)) || {}).name;
+        if (fromMembers) return fromMembers;
+
+        return '-';
+    };
+
     if (loading) {
         return ( <
             div className = "min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800" >
@@ -2680,7 +2694,7 @@ Card >
     tr >
     <
     th className = "text-left p-4 font-medium text-slate-600" > {
-        t('project')
+        t('assignedTo')
     } < /th> <
 th className = "text-left p-4 font-medium text-slate-600" > {
     t('fullName')
@@ -2712,7 +2726,7 @@ tbody className = "divide-y" > {
             td className = "p-4" >
             <
             span className = "text-sm text-slate-700" > {
-                lead.projectName || (projects.find(p => p.id === lead.projectId) || {}).name || '-'
+                getLeadAssigneeName(lead)
             } < /span> < /
             td > <
             td className = "p-4" >
